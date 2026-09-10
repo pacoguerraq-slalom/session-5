@@ -24,8 +24,22 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import './App.css';
 
-// INTENTIONAL ISSUE: API_URL should use environment variable or relative URL
-const API_URL = 'http://localhost:3001/api/todos';
+const API_URL = '/api/todos';
+
+const requestJson = async (url, options) => {
+  const response = await fetch(url, options);
+  if (response.ok === false) {
+    throw new Error('Request failed');
+  }
+  return response.json();
+};
+
+const request = async (url, options) => {
+  const response = await fetch(url, options);
+  if (response.ok === false) {
+    throw new Error('Request failed');
+  }
+};
 
 // React Query hook for fetching todos
 const useTodos = () => {
@@ -37,8 +51,7 @@ const useTodos = () => {
       if (response.ok === false) {
         throw new Error('Unable to load todos');
       }
-      const data = await response.json();
-      return data;
+      return response.json();
     },
   });
 };
@@ -55,13 +68,11 @@ function App() {
   // Mutation for adding a new todo
   const addTodoMutation = useMutation({
     mutationFn: async (title) => {
-      // INTENTIONAL ISSUE: Missing validation for empty title
-      const response = await fetch(API_URL, {
+      return requestJson(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title }),
       });
-      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
@@ -72,7 +83,7 @@ function App() {
   // Mutation for toggling todo completion
   const toggleTodoMutation = useMutation({
     mutationFn: async (id) => {
-      await fetch(`${API_URL}/${id}/toggle`, {
+      await request(`${API_URL}/${id}/toggle`, {
         method: 'PATCH',
       });
     },
@@ -83,7 +94,7 @@ function App() {
 
   const deleteTodoMutation = useMutation({
     mutationFn: async (id) => {
-      await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+      await request(`${API_URL}/${id}`, { method: 'DELETE' });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
@@ -92,12 +103,11 @@ function App() {
 
   const editTodoMutation = useMutation({
     mutationFn: async ({ id, title }) => {
-      const response = await fetch(API_URL + "/" + id, {
+      return requestJson(`${API_URL}/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title }),
       });
-      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["todos"] });
@@ -132,6 +142,15 @@ function App() {
       editTodoMutation.mutate({ id, title: editingTodoTitle.trim() });
     }
   };
+
+  const incompleteCount = todos.filter((todo) => !todo.completed).length;
+  const completedCount = todos.filter((todo) => todo.completed).length;
+  const mutationError = [
+    addTodoMutation,
+    toggleTodoMutation,
+    deleteTodoMutation,
+    editTodoMutation,
+  ].some((mutation) => mutation.isError);
 
   return (
     <Box
@@ -197,13 +216,21 @@ function App() {
             Unable to load todos
           </Box>
         )}
-
-
-        {/* INTENTIONAL ISSUE: No empty state message when todos.length === 0 */}
+        {mutationError && (
+          <Box role="alert" sx={{ mb: 3 }}>
+            Unable to update todos
+          </Box>
+        )}
 
         <Card>
           <List sx={{ p: 0 }}>
-            {todos.map((todo, index) => (
+            {todos.length === 0 ? (
+              <ListItem>
+                <Typography sx={{ width: '100%', textAlign: 'center', py: 2 }}>
+                  No todos yet
+                </Typography>
+              </ListItem>
+            ) : todos.map((todo, index) => (
               <ListItem
                 key={todo.id}
                 sx={{
@@ -247,10 +274,9 @@ function App() {
           </List>
         </Card>
 
-        {/* INTENTIONAL ISSUE: Stats always show 0 instead of calculating from todos */}
         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center', gap: 2 }}>
-          <Chip label={`${0} items left`} color="primary" />
-          <Chip label={`${0} completed`} color="success" />
+          <Chip label={`${incompleteCount} items left`} color="primary" />
+          <Chip label={`${completedCount} completed`} color="success" />
         </Box>
       </Container>
     </Box>
